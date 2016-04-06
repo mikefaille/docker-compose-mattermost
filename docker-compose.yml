@@ -1,21 +1,48 @@
-db:
-  build: db
-  volumes:
-    - ./volumes/db/var/lib/postgresql/data:/var/lib/postgresql/data
-    - /etc/localtime:/etc/localtime:ro
-app:
-  build: app
-  links:
-    - db:db
-  volumes:
-    - ./volumes/app/mattermost/config:/mattermost/config:rw
-    - ./volumes/app/mattermost/data:/mattermost/data:rw
-    - /etc/localtime:/etc/localtime:ro
-web:
-  build: web
-  ports:
-    - "443:443"
-  links:
-    - app:platform
-  volumes:
-    - /etc/localtime:/etc/localtime:ro
+version: '2'
+services:
+  db:
+    build: db
+    hostname: db
+    environment:
+      - DB_PORT_5432_TCP_PORT=5432
+    volumes:
+      - ./db/volumes/var/lib/postgresql/data:/var/lib/postgresql/data
+      - /etc/localtime:/etc/localtime:ro
+  app:
+    build: app
+    environment:
+      - PLATFORM_PORT_80_TCP_ADDR=80
+    links:
+      - db:db
+    volumes:
+      - ./app/volumes/templates /data/
+      - ./app/volumes/config:/mattermost/config:rw
+      - ./app/volumes/data:/mattermost/data:rw
+      - /etc/localtime:/etc/localtime:ro
+  web:
+    build: web
+    ports:
+      - "443:443"
+    links:
+      - app:app
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+  etcd:
+    image: quay.io/coreos/etcd
+    volumes:
+      - /usr/share/ca-certificates/:/etc/ssl/certs
+    command:  -advertise-client-urls=http://0.0.0.0:2379 -listen-client-urls=http://0.0.0.0:2379  -initial-cluster-state new  -initial-cluster-token etcd-cluster-1
+    port:
+      - "4001:4001"
+
+
+ #    docker run -d -v /usr/share/ca-certificates/:/etc/ssl/certs -p 4001:4001 -p 2380:2380 -p 2379:2379 \
+ # --name etcd quay.io/coreos/etcd \
+ # -name etcd0 \
+ # -advertise-client-urls http://${HostIP}:2379,http://${HostIP}:4001 \
+ # -listen-client-urls http://0.0.0.0:2379,http://0.0.0.0:4001 \
+ # -initial-advertise-peer-urls http://${HostIP}:2380 \
+ # -listen-peer-urls http://0.0.0.0:2380 \
+ # -initial-cluster-token etcd-cluster-1 \
+ # -initial-cluster etcd0=http://${HostIP}:2380 \
+ # -initial-cluster-state new
